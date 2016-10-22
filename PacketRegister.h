@@ -19,6 +19,8 @@ Part of DCC++ BASE STATION for the Arduino
 #define  ACK_SAMPLE_SMOOTHING      0.2      // exponential smoothing to use in processing the analogRead samples after a CV verify (bit or byte) has been sent
 #define  ACK_SAMPLE_THRESHOLD       30      // the threshold that the exponentially-smoothed analogRead samples (after subtracting the baseline current) must cross to establish ACKNOWLEDGEMENT
 
+#define SHOW_PACKETS true //band aid fix to get compilation working again
+
 // Define a series of registers that can be sequentially accessed over a loop to generate a repeating series of DCC Packets
 
 struct Packet{
