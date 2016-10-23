@@ -19,27 +19,41 @@
 #include "LoconetMaster.h"
 #include "DCCBaseStation.h"
 
+#define DCC_POWER_ENABLE_PIN 3
+
 DisplayController displayController(15, 40, 16, 38, 17, 36, 18, 34, 19, 32, 20);
-DCCBaseStation dccBaseStation(12, 3, A0, 20);
+DCCBaseStation dccBaseStation(12, DCC_POWER_ENABLE_PIN, A0, 20);
 
 ISR(TIMER1_COMPB_vect) {             // set interrupt service for OCR1B of TIMER-1 which flips direction bit of Motor Shield Channel A controlling Main Track
   DCC_SIGNAL((*dccBaseStation.getRegisterList()), 1, 16)
 }
 LoconetMaster loconetMaster(20);
+boolean shortActive = false;
+unsigned long shortStartMillis;
 
 void setup() {
   Serial.begin(115200);            // configure serial interface
   Serial.flush();
-  
+
   dccBaseStation.begin(1);
   displayController.begin( 20, 2, "DCCSpider", "V0.00");
   displayController.setDisplayState(DisplayController::EnterDispatchAddress);
-  loconetMaster.begin(46,&dccBaseStation);
-  
+  loconetMaster.begin(46, &dccBaseStation);
+
   dccBaseStation.enableTrackPower();
 }
 
 void loop() {
+  if ( shortActive && ( millis() > shortStartMillis + 100 )  ) {
+    digitalWrite(DCC_POWER_ENABLE_PIN, HIGH);
+  }
+  if ( dccBaseStation.checkCurrentDraw() ) //short detected, power has been cut
+  {
+    shortActive = true;
+    shortStartMillis = millis();
+  }
+
+
   displayController.updateDisplay();
   loconetMaster.processReceivedMessages();
 }

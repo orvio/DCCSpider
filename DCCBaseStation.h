@@ -31,6 +31,8 @@ class DCCBaseStation {
     void begin(byte timerNo);
     volatile RegisterList * getRegisterList() const;
     void enableTrackPower();
+    boolean checkCurrentDraw();
+    
 
   private:
     volatile RegisterList * _registerList;

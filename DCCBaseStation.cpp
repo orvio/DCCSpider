@@ -68,3 +68,7 @@ void DCCBaseStation::begin(byte timerNo)
   }
 }
 
+boolean DCCBaseStation::checkCurrentDraw() {
+  return _currentMonitor->check();
+}
+

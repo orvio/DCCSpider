@@ -26,12 +26,13 @@ boolean CurrentMonitor::checkTime(){
   return(true);  
 } // CurrentMonitor::checkTime
   
-void CurrentMonitor::check(){
+boolean CurrentMonitor::check(){
   current=analogRead(pin)*CURRENT_SAMPLE_SMOOTHING+current*(1.0-CURRENT_SAMPLE_SMOOTHING);        // compute new exponentially-smoothed current
-  if(current>CURRENT_SAMPLE_MAX && digitalRead(this->signalEnablePin)==HIGH){                    // current overload and Prog Signal is on (or could have checked Main Signal, since both are always on or off together)
+  boolean shortDetected = current>CURRENT_SAMPLE_MAX;
+  if( shortDetected && digitalRead(this->signalEnablePin)==HIGH){                    // current overload and Prog Signal is on (or could have checked Main Signal, since both are always on or off together)
     digitalWrite(this->signalEnablePin,LOW);
-    //INTERFACE.print(msg);                                                                            // print corresponding error message
-  }    
+  }
+  return shortDetected;
 } // CurrentMonitor::check  
 
 long int CurrentMonitor::sampleTime=0;

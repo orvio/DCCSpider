@@ -28,7 +28,7 @@ struct CurrentMonitor{
   float current;
   CurrentMonitor(int, byte signalEnablePin);
   static boolean checkTime();
-  void check();
+  boolean check();
 };
 
 #endif
