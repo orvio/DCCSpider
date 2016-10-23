@@ -16,37 +16,42 @@
  * along with DCCSpider.  If not, see <http://www.gnu.org/licenses/>.    *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #include "Arduino.h"
-#include <LocoNet.h>
-#include "DCCBaseStation.h"
+#include <LiquidCrystal.h>
 
-#ifndef LoconetMaster_h
-#define LoconetMaster_h
-
-class LoconetMaster
+#ifndef DisplayController_h
+#define DisplayController_h
+class DisplayController
 {
   public:
-    LoconetMaster(byte slotCount);
-    void begin(byte rxPin, DCCBaseStation * dccBaseStation);
-    void processReceivedMessages();
+    typedef enum
+    {
+      EnterDispatchAddress,
+      TakeoverDispatchedAddress,
+      DisplaySystemStats,
+    } DisplayState ;
+    DisplayController(byte rsPin, byte rwPin, byte enablePin,
+                      byte d0Pin, byte d1Pin, byte d2Pin, byte d3Pin,
+                      byte d4Pin, byte d5Pin, byte d6Pin, byte d7Pin);
+    void begin(byte columnCount, byte rowCount, String projectName, String versionString);
+
+    void end();
+
+    void setDisplayState(DisplayState state);
+
+    void updateDisplay();
+
 
   private:
-    typedef struct
-    {
-      byte slotStatus = LOCO_FREE;
-      int locoAddress = 0;
-      byte locoSpeed = 0;
-      byte directionF0F4 = 0;
-      int deviceID = 0;
-    } SlotData;
+    LiquidCrystal * _display;
+    DisplayState _state;
+    byte _scrollPosition;
+    unsigned long _lastUpdateMillis;
+    String _scrollString;
+    String _staticString;
+    String _inputString;
+    byte _columnCount;
+    boolean _displayCursor;
 
-    byte getLocoSlotNumber(int locoAddress);
-    byte createLocoSlot(int locoAddress);
-    void sendSlotReadData(byte slotNumber);
-    byte _dispatchSlotNumber;
-    byte _slotCount;
-    SlotData * _slotData;
-    int _messageNo;
-    DCCBaseStation * _dccBaseStation;
-
+    int freeRam();
 };
 #endif

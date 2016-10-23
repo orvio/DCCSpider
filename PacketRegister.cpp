@@ -7,9 +7,9 @@ Part of DCC++ BASE STATION for the Arduino
 
 **********************************************************************/
 
-#include "DCCpp_Uno.h"
+//#include "DCCpp_Uno.h"
 #include "PacketRegister.h"
-#include "Comm.h"
+//#include "Comm.h"
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -19,7 +19,7 @@ void Register::initPackets(){
 } // Register::initPackets
 
 ///////////////////////////////////////////////////////////////////////////////
-    
+
 RegisterList::RegisterList(int maxNumRegs){
   this->maxNumRegs=maxNumRegs;
   reg=(Register *)calloc((maxNumRegs+1),sizeof(Register));
@@ -98,41 +98,34 @@ void RegisterList::loadPacket(int nReg, byte *b, int nBytes, int nRepeat, int pr
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void RegisterList::setThrottle(char *s) volatile{
+void RegisterList::setThrottle(byte registerNo, unsigned int locoAddress, byte locoSpeed, boolean forward) volatile{
   byte b[5];                      // save space for checksum byte
-  int nReg;
-  int cab;
-  int tSpeed;
-  int tDirection;
   byte nB=0;
-  
-  if(sscanf(s,"%d %d %d %d",&nReg,&cab,&tSpeed,&tDirection)!=4)
-    return;
 
-  if(nReg<1 || nReg>maxNumRegs)
+  if(registerNo<1 || registerNo>maxNumRegs)
     return;  
 
-  if(cab>127)
-    b[nB++]=highByte(cab) | 0xC0;      // convert train number into a two-byte address
+  if(locoAddress>127)
+    b[nB++]=highByte(locoAddress) | 0xC0;      // convert train number into a two-byte address
     
-  b[nB++]=lowByte(cab);
+  b[nB++]=lowByte(locoAddress);
   b[nB++]=0x3F;                        // 128-step speed control byte
-  if(tSpeed>=0) 
-    b[nB++]=tSpeed+(tSpeed>0)+tDirection*128;   // max speed is 126, but speed codes range from 2-127 (0=stop, 1=emergency stop)
+  if(locoSpeed>=0) 
+    b[nB++]=locoSpeed+(locoSpeed>0)+forward*128;   // max speed is 126, but speed codes range from 2-127 (0=stop, 1=emergency stop)
   else{
     b[nB++]=1;
-    tSpeed=0;
+    locoSpeed=0;
   }
        
-  loadPacket(nReg,b,nB,0,1);
+  loadPacket(registerNo,b,nB,0,1);
   
-  INTERFACE.print("<T");
-  INTERFACE.print(nReg); INTERFACE.print(" ");
-  INTERFACE.print(tSpeed); INTERFACE.print(" ");
-  INTERFACE.print(tDirection);
-  INTERFACE.print(">");
+  Serial.print("<T");
+  Serial.print(registerNo); Serial.print(" ");
+  Serial.print(locoSpeed); Serial.print(" ");
+  Serial.print(forward);
+  Serial.print(">");
   
-  speedTable[nReg]=tDirection==1?tSpeed:-tSpeed;
+  speedTable[registerNo]=forward?locoSpeed:-locoSpeed;
     
 } // RegisterList::setThrottle()
 
@@ -196,7 +189,7 @@ void RegisterList::writeTextPacket(char *s) volatile{
   nBytes=sscanf(s,"%d %x %x %x %x %x",&nReg,b,b+1,b+2,b+3,b+4)-1;
   
   if(nBytes<2 || nBytes>5){    // invalid valid packet
-    INTERFACE.print("<mInvalid Packet>");
+    Serial.print("<mInvalid Packet>");
     return;
   }
          
@@ -207,6 +200,7 @@ void RegisterList::writeTextPacket(char *s) volatile{
 ///////////////////////////////////////////////////////////////////////////////
 
 void RegisterList::readCV(char *s) volatile{
+  /*Program track disabled for now
   byte bRead[4];
   int bValue;
   int c,d,base;
@@ -270,21 +264,22 @@ void RegisterList::readCV(char *s) volatile{
   if(d==0)    // verify unsuccessful
     bValue=-1;
 
-  INTERFACE.print("<r");
-  INTERFACE.print(callBack);
-  INTERFACE.print("|");
-  INTERFACE.print(callBackSub);
-  INTERFACE.print("|");
-  INTERFACE.print(cv+1);
-  INTERFACE.print(" ");
-  INTERFACE.print(bValue);
-  INTERFACE.print(">");
-        
+  Serial.print("<r");
+  Serial.print(callBack);
+  Serial.print("|");
+  Serial.print(callBackSub);
+  Serial.print("|");
+  Serial.print(cv+1);
+  Serial.print(" ");
+  Serial.print(bValue);
+  Serial.print(">");
+        */
 } // RegisterList::readCV()
 
 ///////////////////////////////////////////////////////////////////////////////
 
 void RegisterList::writeCVByte(char *s) volatile{
+  /* Program track disabled for now
   byte bWrite[4];
   int bValue;
   int c,d,base;
@@ -326,21 +321,22 @@ void RegisterList::writeCVByte(char *s) volatile{
   if(d==0)    // verify unsuccessful
     bValue=-1;
 
-  INTERFACE.print("<r");
-  INTERFACE.print(callBack);
-  INTERFACE.print("|");
-  INTERFACE.print(callBackSub);
-  INTERFACE.print("|");
-  INTERFACE.print(cv+1);
-  INTERFACE.print(" ");
-  INTERFACE.print(bValue);
-  INTERFACE.print(">");
-
+  Serial.print("<r");
+  Serial.print(callBack);
+  Serial.print("|");
+  Serial.print(callBackSub);
+  Serial.print("|");
+  Serial.print(cv+1);
+  Serial.print(" ");
+  Serial.print(bValue);
+  Serial.print(">");
+*/
 } // RegisterList::writeCVByte()
   
 ///////////////////////////////////////////////////////////////////////////////
 
 void RegisterList::writeCVBit(char *s) volatile{
+  /* Program track disabled for now
   byte bWrite[4];
   int bNum,bValue;
   int c,d,base;
@@ -384,18 +380,18 @@ void RegisterList::writeCVBit(char *s) volatile{
   if(d==0)    // verify unsuccessful
     bValue=-1;
   
-  INTERFACE.print("<r");
-  INTERFACE.print(callBack);
-  INTERFACE.print("|");
-  INTERFACE.print(callBackSub);
-  INTERFACE.print("|");
-  INTERFACE.print(cv+1);
-  INTERFACE.print(" ");
-  INTERFACE.print(bNum);
-  INTERFACE.print(" ");
-  INTERFACE.print(bValue);
-  INTERFACE.print(">");
-
+  Serial.print("<r");
+  Serial.print(callBack);
+  Serial.print("|");
+  Serial.print(callBackSub);
+  Serial.print("|");
+  Serial.print(cv+1);
+  Serial.print(" ");
+  Serial.print(bNum);
+  Serial.print(" ");
+  Serial.print(bValue);
+  Serial.print(">");
+*/
 } // RegisterList::writeCVBit()
   
 ///////////////////////////////////////////////////////////////////////////////
@@ -456,16 +452,16 @@ void RegisterList::writeCVBitMain(char *s) volatile{
 
 void RegisterList::printPacket(int nReg, byte *b, int nBytes, int nRepeat) volatile {
   
-  INTERFACE.print("<*");
-  INTERFACE.print(nReg);
-  INTERFACE.print(":");
+  Serial.print("<*");
+  Serial.print(nReg);
+  Serial.print(":");
   for(int i=0;i<nBytes;i++){
-    INTERFACE.print(" ");
-    INTERFACE.print(b[i],HEX);
+    Serial.print(" ");
+    Serial.print(b[i],HEX);
   }
-  INTERFACE.print(" / ");
-  INTERFACE.print(nRepeat);
-  INTERFACE.print(">");
+  Serial.print(" / ");
+  Serial.print(nRepeat);
+  Serial.print(">");
 } // RegisterList::printPacket()
 
 ///////////////////////////////////////////////////////////////////////////////

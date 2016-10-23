@@ -26,13 +26,14 @@ LoconetMaster::LoconetMaster(byte slotCount)
 
   //Test Code
   _dispatchSlotNumber = 1;
-  _slotData[0].locoAddress = 1100;
+  _slotData[0].locoAddress = 1101;
   _slotData[0].slotStatus = LOCO_IDLE | DEC_MODE_128;
 }
 
-void LoconetMaster::begin(byte rxPin)
+void LoconetMaster::begin(byte rxPin, DCCBaseStation * dccBaseStation)
 {
   LocoNet.init(rxPin);
+  _dccBaseStation = dccBaseStation;
 }
 
 byte LoconetMaster::getLocoSlotNumber(int locoAddress)
@@ -136,6 +137,7 @@ void LoconetMaster::processReceivedMessages()
     {
       byte slotNumber = receivedMessage->data[1];
       _slotData[slotNumber - 1].locoSpeed = receivedMessage->data[2];
+      _dccBaseStation->getRegisterList()->setThrottle(3,_slotData[slotNumber - 1].locoAddress,_slotData[slotNumber - 1].locoSpeed,_slotData[slotNumber - 1].directionF0F4 & DIRF_DIR);
     }
     else if (receivedMessage->data[0] == OPC_LOCO_DIRF )
     {
