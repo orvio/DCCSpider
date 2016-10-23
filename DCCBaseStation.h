@@ -25,14 +25,73 @@
 #ifndef DCCBaseStation_h
 #define DCCBaseStation_h
 
+#define DECODER_CONSIST_CONTROL 0x00
+#define ADVANCED_OPERATION 0x20
+#define SPEED_REVERSE 0x40
+#define SPEED_FORWARD 0x60
+#define FUNCTION_GROUP_F0F4 0x80
+#define FUNCION_GROUP_F5F12 0xA0
+#define FUTURE_EXPANSION 0xC0
+#define CV_ACCESS 0xE0
+
 class DCCBaseStation {
   public:
+    /**
+      The DCCRawPacket consists of data ready to transmit to the track with minimal overhead in interrupt routines.
+    */
+    typedef struct
+    {
+      byte bytes[10];
+      byte usedBits;
+    } DCCRawPacket;
+
+    /**
+      The DCCBufferPacket is the internal representation of DCCPackets.
+
+      The data contain two DCCRawPackets. The packet at index 0 can be modified at any time.
+      The packet at index 1 is the dataspace used by the interrupt routines which will also update the raw data when neccessary.
+    */
+    typedef struct DCCBufferPacket
+    {
+      DCCRawPacket rawPackets[2]; /**Data at index 0 is always new stuff. Data at index 1 is always stuff potentially currently being transmitted*/
+      unsigned int locoAddress;
+      byte instructionByte;
+      unsigned long lastUpdateMillis;
+      DCCBufferPacket * nextPacket;
+    } DCCBufferPacket;
+
+    /**
+       The DCCPacketList serves as an organizational layer.
+
+       This struct does not actually contain any packets but points to the first packet in the
+       list. This allows packets to be shuffled between the priorities without having to
+       copy anything.
+    */
+    typedef struct
+    {
+      DCCBufferPacket * firstPacket;
+      DCCBufferPacket * lastPacket;
+      DCCBufferPacket * newOrUpdatedPackets[];
+    } DCCPacketList;
+
+    typedef struct
+    {
+      DCCBufferPacket packets[]; /**Memory space for all packets*/
+      DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
+      DCCPacketList * currentList; /**The packet list currently being cycled through*/
+      byte currentBit; /**Current bit in the current packet*/
+      DCCPacketList * lowPriorityList;
+      DCCPacketList * highPriorityList;
+      DCCPacketList * criticalPriorityList;
+
+    } DCCPrioriyList;
+
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
     volatile RegisterList * getRegisterList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
-    
+
 
   private:
     volatile RegisterList * _registerList;
