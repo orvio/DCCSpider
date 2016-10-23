@@ -51,7 +51,7 @@ struct RegisterList{
   static byte bitMask[];
   RegisterList(int);
   void loadPacket(int, byte *, int, int, int=0) volatile;
-  void setThrottle(char *) volatile;
+  void setThrottle(byte registerNo, unsigned int locoAddress, byte locoSpeed, boolean forward) volatile;
   void setFunction(char *) volatile;  
   void setAccessory(char *) volatile;
   void writeTextPacket(char *) volatile;

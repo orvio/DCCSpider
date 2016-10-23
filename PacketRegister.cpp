@@ -98,41 +98,34 @@ void RegisterList::loadPacket(int nReg, byte *b, int nBytes, int nRepeat, int pr
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void RegisterList::setThrottle(char *s) volatile{
+void RegisterList::setThrottle(byte registerNo, unsigned int locoAddress, byte locoSpeed, boolean forward) volatile{
   byte b[5];                      // save space for checksum byte
-  int nReg;
-  int cab;
-  int tSpeed;
-  int tDirection;
   byte nB=0;
-  
-  if(sscanf(s,"%d %d %d %d",&nReg,&cab,&tSpeed,&tDirection)!=4)
-    return;
 
-  if(nReg<1 || nReg>maxNumRegs)
+  if(registerNo<1 || registerNo>maxNumRegs)
     return;  
 
-  if(cab>127)
-    b[nB++]=highByte(cab) | 0xC0;      // convert train number into a two-byte address
+  if(locoAddress>127)
+    b[nB++]=highByte(locoAddress) | 0xC0;      // convert train number into a two-byte address
     
-  b[nB++]=lowByte(cab);
+  b[nB++]=lowByte(locoAddress);
   b[nB++]=0x3F;                        // 128-step speed control byte
-  if(tSpeed>=0) 
-    b[nB++]=tSpeed+(tSpeed>0)+tDirection*128;   // max speed is 126, but speed codes range from 2-127 (0=stop, 1=emergency stop)
+  if(locoSpeed>=0) 
+    b[nB++]=locoSpeed+(locoSpeed>0)+forward*128;   // max speed is 126, but speed codes range from 2-127 (0=stop, 1=emergency stop)
   else{
     b[nB++]=1;
-    tSpeed=0;
+    locoSpeed=0;
   }
        
-  loadPacket(nReg,b,nB,0,1);
+  loadPacket(registerNo,b,nB,0,1);
   
   Serial.print("<T");
-  Serial.print(nReg); Serial.print(" ");
-  Serial.print(tSpeed); Serial.print(" ");
-  Serial.print(tDirection);
+  Serial.print(registerNo); Serial.print(" ");
+  Serial.print(locoSpeed); Serial.print(" ");
+  Serial.print(forward);
   Serial.print(">");
   
-  speedTable[nReg]=tDirection==1?tSpeed:-tSpeed;
+  speedTable[registerNo]=forward?locoSpeed:-locoSpeed;
     
 } // RegisterList::setThrottle()
 
