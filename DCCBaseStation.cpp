@@ -19,9 +19,41 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #include "DCCBaseStation.h"
 
+DCCBaseStation::DCCPacketList * DCCBaseStation::DCCPriorityList::initPacketList(byte packetCount)
+{
+  DCCPacketList * packetList =  new DCCPacketList;
+  packetList->firstPacket = NULL;
+  packetList->lastPacket = NULL;
+  packetList->newOrUpdatedPackets = new DCCBufferPacket*[packetCount];
+  for (int i = 0; i < packetCount; i++)
+  {
+    packetList->newOrUpdatedPackets[i] = NULL;
+  }
+  return packetList;
+}
+DCCBaseStation::DCCPriorityList::DCCPriorityList(byte packetCount)
+{
+  packets = new DCCBaseStation::DCCBufferPacket[packetCount];
+  for ( int i = 0; i < packetCount; i++)
+  {
+    packets[i].locoAddress = 0;
+    packets[i].instructionByte = 0;
+    packets[i].lastUpdateMillis = millis();
+    packets[i].nextPacket = NULL;
+  }
+  currentPacket = NULL;
+  currentList = NULL;
+  currentBit = 0;
+  lowPriorityList = initPacketList(packetCount);
+  highPriorityList = initPacketList(packetCount);
+  criticalPriorityList = initPacketList(packetCount);
+}
+
+
 DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount)
 {
   _registerList = new volatile RegisterList(registerCount);
+  _priorityList = new volatile DCCPriorityList(registerCount);
   _currentMonitor = new CurrentMonitor(currentSensePin, enablePin);
   _enablePin = enablePin;
   _dccSignalPin = dccSignalPin;
@@ -70,5 +102,41 @@ void DCCBaseStation::begin(byte timerNo)
 
 boolean DCCBaseStation::checkCurrentDraw() {
   return _currentMonitor->check();
+}
+
+void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed) {
+  //find out wheter a loco speed packet is already in the lists
+  //speed stuff is either high or critical priority
+  DCCBufferPacket * currentPacket = NULL;
+
+  //check high prioriy list
+  for (currentPacket = _priorityList->highPriorityList->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+    if (currentPacket->locoAddress == locoAddress) { //hit
+      break;
+    }
+  }
+
+  //check critical priority list
+  if (currentPacket == NULL) {
+    for (currentPacket = _priorityList->criticalPriorityList->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+      if (currentPacket->locoAddress == locoAddress) { //hit
+        break;
+      }
+    }
+  }
+
+  //create packet if still not found
+  if (currentPacket == NULL) {
+    //TODO need efficient way to determine first available slot in packet space
+
+    if (_priorityList->highPriorityList->firstPacket == NULL) {
+      _priorityList->highPriorityList->firstPacket = currentPacket;
+      _priorityList->highPriorityList->lastPacket = currentPacket;
+    }
+    else {
+      _priorityList->highPriorityList->lastPacket->nextPacket = currentPacket;
+      _priorityList->highPriorityList->lastPacket = currentPacket;
+    }
+  }
 }
 

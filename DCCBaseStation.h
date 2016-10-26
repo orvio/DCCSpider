@@ -39,11 +39,12 @@ class DCCBaseStation {
     /**
       The DCCRawPacket consists of data ready to transmit to the track with minimal overhead in interrupt routines.
     */
-    typedef struct
+    class DCCRawPacket
     {
-      byte bytes[10];
-      byte usedBits;
-    } DCCRawPacket;
+      public:
+        byte bytes[10];
+        byte usedBits = 0;
+    };
 
     /**
       The DCCBufferPacket is the internal representation of DCCPackets.
@@ -51,14 +52,15 @@ class DCCBaseStation {
       The data contain two DCCRawPackets. The packet at index 0 can be modified at any time.
       The packet at index 1 is the dataspace used by the interrupt routines which will also update the raw data when neccessary.
     */
-    typedef struct DCCBufferPacket
+    class DCCBufferPacket
     {
-      DCCRawPacket rawPackets[2]; /**Data at index 0 is always new stuff. Data at index 1 is always stuff potentially currently being transmitted*/
-      unsigned int locoAddress;
-      byte instructionByte;
-      unsigned long lastUpdateMillis;
-      DCCBufferPacket * nextPacket;
-    } DCCBufferPacket;
+      public:
+        DCCRawPacket rawPackets[2]; /**Data at index 0 is always new stuff. Data at index 1 is always stuff potentially currently being transmitted*/
+        unsigned int locoAddress;
+        byte instructionByte;
+        unsigned long lastUpdateMillis;
+        DCCBufferPacket * nextPacket;
+    };
 
     /**
        The DCCPacketList serves as an organizational layer.
@@ -67,33 +69,39 @@ class DCCBaseStation {
        list. This allows packets to be shuffled between the priorities without having to
        copy anything.
     */
-    typedef struct
+    class DCCPacketList
     {
-      DCCBufferPacket * firstPacket;
-      DCCBufferPacket * lastPacket;
-      DCCBufferPacket * newOrUpdatedPackets[];
-    } DCCPacketList;
+      public:
+        DCCBufferPacket * firstPacket;
+        DCCBufferPacket * lastPacket;
+        DCCBufferPacket ** newOrUpdatedPackets;
+    };
 
-    typedef struct
+    class DCCPriorityList
     {
-      DCCBufferPacket packets[]; /**Memory space for all packets*/
-      DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
-      DCCPacketList * currentList; /**The packet list currently being cycled through*/
-      byte currentBit; /**Current bit in the current packet*/
-      DCCPacketList * lowPriorityList;
-      DCCPacketList * highPriorityList;
-      DCCPacketList * criticalPriorityList;
-
-    } DCCPrioriyList;
+      public:
+        DCCBufferPacket * packets; /**Memory space for all packets*/
+        DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
+        DCCPacketList * currentList; /**The packet list currently being cycled through*/
+        byte currentBit; /**Current bit in the current packet*/
+        DCCPacketList * lowPriorityList;
+        DCCPacketList * highPriorityList;
+        DCCPacketList * criticalPriorityList;
+        DCCPriorityList(byte packetCount);
+      private:
+        DCCPacketList *  initPacketList(byte packetCount);
+    };
 
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
     volatile RegisterList * getRegisterList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
+    void setLocoSpeed(unsigned int locoAddress, byte locoSpeed);
 
 
   private:
+    volatile DCCPriorityList * _priorityList;
     volatile RegisterList * _registerList;
     CurrentMonitor * _currentMonitor;
     byte _enablePin;
