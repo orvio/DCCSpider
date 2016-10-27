@@ -31,8 +31,10 @@ DCCBaseStation::DCCPacketList * DCCBaseStation::DCCPriorityList::initPacketList(
   }
   return packetList;
 }
+
 DCCBaseStation::DCCPriorityList::DCCPriorityList(byte packetCount)
 {
+  this->packetCount = packetCount;
   packets = new DCCBaseStation::DCCBufferPacket[packetCount];
   for ( int i = 0; i < packetCount; i++)
   {
@@ -104,7 +106,7 @@ boolean DCCBaseStation::checkCurrentDraw() {
   return _currentMonitor->check();
 }
 
-void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed) {
+void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection) {
   //find out wheter a loco speed packet is already in the lists
   //speed stuff is either high or critical priority
   DCCBufferPacket * currentPacket = NULL;
@@ -127,8 +129,16 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed) {
 
   //create packet if still not found
   if (currentPacket == NULL) {
-    //TODO need efficient way to determine first available slot in packet space
+    //find first available spot
+    for ( int i = 0; i < _priorityList->packetCount; i++ ) {
+      if ( _priorityList->packets[i].locoAddress == 0 ) {
+        currentPacket =  &(_priorityList->packets[i]);
+        currentPacket->locoAddress = locoAddress;
+        currentPacket->instructionByte = 0;
+      }
+    }
 
+    //new speed packets go into high priority list by default
     if (_priorityList->highPriorityList->firstPacket == NULL) {
       _priorityList->highPriorityList->firstPacket = currentPacket;
       _priorityList->highPriorityList->lastPacket = currentPacket;
@@ -138,5 +148,24 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed) {
       _priorityList->highPriorityList->lastPacket = currentPacket;
     }
   }
+
+  //compare speeds to determine priority change
+  if ( currentPacket->instructionByte != 0 ) {
+    byte currentSpeed = currentPacket->instructionByte & 0x1F;
+    //packet goes into critical list if speed is lower or (emergency) stop is instructed
+    if ((locoSpeed < currentSpeed) || locoSpeed == 0 || locoSpeed == 1) {
+      //TODO implement priorityswitch
+    }
+  }
+
+  //setup packet with new data
+  if( locoDirection == FORWARD ) {
+    currentPacket->instructionByte = SPEED_FORWARD & locoSpeed;
+  }
+  else {
+    currentPacket->instructionByte = SPEED_REVERSE & locoSpeed;
+  }
+
+  //TODO implement update in nowOrUpdated list
 }
 

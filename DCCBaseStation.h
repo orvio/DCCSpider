@@ -81,6 +81,7 @@ class DCCBaseStation {
     {
       public:
         DCCBufferPacket * packets; /**Memory space for all packets*/
+        byte packetCount;
         DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
         DCCPacketList * currentList; /**The packet list currently being cycled through*/
         byte currentBit; /**Current bit in the current packet*/
@@ -92,12 +93,17 @@ class DCCBaseStation {
         DCCPacketList *  initPacketList(byte packetCount);
     };
 
+    typedef enum {
+      FORWARD,
+      REVERSE
+    } DCCDirection;
+
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
     volatile RegisterList * getRegisterList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
-    void setLocoSpeed(unsigned int locoAddress, byte locoSpeed);
+    void setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection);
 
 
   private:
