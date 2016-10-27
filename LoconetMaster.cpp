@@ -137,7 +137,15 @@ void LoconetMaster::processReceivedMessages()
     {
       byte slotNumber = receivedMessage->data[1];
       _slotData[slotNumber - 1].locoSpeed = receivedMessage->data[2];
-      _dccBaseStation->getRegisterList()->setThrottle(3,_slotData[slotNumber - 1].locoAddress,_slotData[slotNumber - 1].locoSpeed,_slotData[slotNumber - 1].directionF0F4 & DIRF_DIR);
+      _dccBaseStation->getRegisterList()->setThrottle(3, _slotData[slotNumber - 1].locoAddress, _slotData[slotNumber - 1].locoSpeed, _slotData[slotNumber - 1].directionF0F4 & DIRF_DIR);
+      DCCBaseStation::DCCDirection locoDirection;
+      if (_slotData[slotNumber - 1].directionF0F4 & DIRF_DIR) {
+        locoDirection = DCCBaseStation::FORWARD;
+      }
+      else {
+        locoDirection = DCCBaseStation::REVERSE;
+      }
+      _dccBaseStation->setLocoSpeed(_slotData[slotNumber - 1].locoAddress, _slotData[slotNumber - 1].locoSpeed, locoDirection);
     }
     else if (receivedMessage->data[0] == OPC_LOCO_DIRF )
     {
