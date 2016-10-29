@@ -24,9 +24,39 @@
 DisplayController displayController(15, 40, 16, 38, 17, 36, 18, 34, 19, 32, 20);
 DCCBaseStation dccBaseStation(12, DCC_POWER_ENABLE_PIN, A0, 20);
 
-ISR(TIMER1_COMPB_vect) {             // set interrupt service for OCR1B of TIMER-1 which flips direction bit of Motor Shield Channel A controlling Main Track
+/*ISR(TIMER1_COMPB_vect) {             // set interrupt service for OCR1B of TIMER-1 which flips direction bit of Motor Shield Channel A controlling Main Track
   DCC_SIGNAL((*dccBaseStation.getRegisterList()), 1, 16)
+  }*/
+
+volatile DCCBaseStation::DCCPriorityList * priorityList = dccBaseStation.getPriorityList();
+ISR(TIMER1_COMPB_vect) {
+  //if current packet done, select next packet
+  if (priorityList->currentBit >= priorityList->currentPacket->usedBits) {
+    //check for updated packets starting in critical list
+    for (byte i = 0; i < PRIORITY_LIST_COUNT; i++) {
+      if (priorityList->packetLists[i]->newOrUpdatedCount > 0) {
+        priorityList->packetLists[i]->newOrUpdatedPackets[priorityList->packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[1] = \
+            priorityList->packetLists[i]->newOrUpdatedPackets[priorityList->packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[0];
+        priorityList->currentPacket = &(priorityList->packetLists[i]->newOrUpdatedPackets[priorityList->packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[1]);
+
+        //update newOrUpdatedIndexes
+        priorityList->packetLists[i]->newOrUpdatedCount--;
+        priorityList->packetLists[i]->firstNewOrUpdatedIndex++;
+        priorityList->currentBit = 0;
+        break; //leave loop
+      }
+    }
+
+    //select next cycle packet if no updated packets found
+    if (priorityList->currentBit == 0) {
+
+    }
+  }
+
+  //proceed transmitting current packet
+
 }
+
 LoconetMaster loconetMaster(20);
 boolean shortActive = false;
 unsigned long shortStartMillis;

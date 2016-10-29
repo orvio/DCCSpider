@@ -36,26 +36,29 @@ DCCBaseStation::DCCPriorityList::DCCPriorityList(byte packetCount)
 {
   this->packetCount = packetCount;
   packets = new DCCBaseStation::DCCBufferPacket[packetCount];
-  for ( int i = 0; i < packetCount; i++)
+  for ( byte i = 0; i < packetCount; i++)
   {
     packets[i].locoAddress = 0;
     packets[i].instructionByte = 0;
     packets[i].lastUpdateMillis = millis();
+    packets[i].previousPacket = NULL;
     packets[i].nextPacket = NULL;
   }
   currentPacket = NULL;
-  currentList = NULL;
+  currentCyclePacket = NULL;
+  currentList = 0;
   currentBit = 0;
-  lowPriorityList = initPacketList(packetCount);
-  highPriorityList = initPacketList(packetCount);
-  criticalPriorityList = initPacketList(packetCount);
+
+  for (byte i = 0; i < PRIORITY_LIST_COUNT; i++) {
+    packetLists[i] = initPacketList(packetCount);
+  }
 }
 
 
-DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount)
+DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount):
+  _priorityList(new volatile DCCPriorityList(registerCount))
 {
   _registerList = new volatile RegisterList(registerCount);
-  _priorityList = new volatile DCCPriorityList(registerCount);
   _currentMonitor = new CurrentMonitor(currentSensePin, enablePin);
   _enablePin = enablePin;
   _dccSignalPin = dccSignalPin;
@@ -69,6 +72,11 @@ void DCCBaseStation::enableTrackPower()
 volatile RegisterList * DCCBaseStation::getRegisterList() const
 {
   return _registerList;
+}
+
+volatile DCCBaseStation::DCCPriorityList * const DCCBaseStation::getPriorityList() const
+{
+  return _priorityList;
 }
 
 void DCCBaseStation::begin(byte timerNo)
@@ -110,18 +118,21 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCD
   //find out wheter a loco speed packet is already in the lists
   //speed stuff is either high or critical priority
   DCCBufferPacket * currentPacket = NULL;
+  DCCPacketList * packetList = NULL;
 
   //check high prioriy list
-  for (currentPacket = _priorityList->highPriorityList->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+  for (currentPacket = _priorityList->packetLists[HIGH_PRIORITY_LIST]->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
     if (currentPacket->locoAddress == locoAddress) { //hit
+      packetList = _priorityList->packetLists[HIGH_PRIORITY_LIST];
       break;
     }
   }
 
   //check critical priority list
   if (currentPacket == NULL) {
-    for (currentPacket = _priorityList->criticalPriorityList->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+    for (currentPacket = _priorityList->packetLists[CRITICAL_PRIORITY_LIST]->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
       if (currentPacket->locoAddress == locoAddress) { //hit
+        packetList = _priorityList->packetLists[CRITICAL_PRIORITY_LIST];
         break;
       }
     }
@@ -139,14 +150,8 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCD
     }
 
     //new speed packets go into high priority list by default
-    if (_priorityList->highPriorityList->firstPacket == NULL) {
-      _priorityList->highPriorityList->firstPacket = currentPacket;
-      _priorityList->highPriorityList->lastPacket = currentPacket;
-    }
-    else {
-      _priorityList->highPriorityList->lastPacket->nextPacket = currentPacket;
-      _priorityList->highPriorityList->lastPacket = currentPacket;
-    }
+    packetList = _priorityList->packetLists[HIGH_PRIORITY_LIST];
+    movePacket(currentPacket, NULL, packetList);
   }
 
   //compare speeds to determine priority change
@@ -154,18 +159,70 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCD
     byte currentSpeed = currentPacket->instructionByte & 0x1F;
     //packet goes into critical list if speed is lower or (emergency) stop is instructed
     if ((locoSpeed < currentSpeed) || locoSpeed == 0 || locoSpeed == 1) {
-      //TODO implement priorityswitch
+      movePacket(currentPacket, packetList, _priorityList->packetLists[CRITICAL_PRIORITY_LIST]);
+      packetList = _priorityList->packetLists[CRITICAL_PRIORITY_LIST];
+    }
+    else { //high priority otherwise
+      movePacket(currentPacket, packetList, _priorityList->packetLists[HIGH_PRIORITY_LIST]);
+      packetList = _priorityList->packetLists[HIGH_PRIORITY_LIST];
     }
   }
 
   //setup packet with new data
-  if( locoDirection == FORWARD ) {
+  if ( locoDirection == FORWARD ) {
     currentPacket->instructionByte = SPEED_FORWARD & locoSpeed;
   }
   else {
     currentPacket->instructionByte = SPEED_REVERSE & locoSpeed;
   }
 
-  //TODO implement update in nowOrUpdated list
+  markPacketUpdated(currentPacket, packetList);
+}
+
+void DCCBaseStation::movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList) {
+  //if lists are identical we have nothing to do
+  if (fromList == toList) {
+    return;
+  }
+
+  if (fromList != NULL ) {
+    //detach from current list first
+    if ( fromList->firstPacket == movedPacket) {
+      fromList->firstPacket = movedPacket->nextPacket;
+    }
+    //this might happen if the packet isthe only packet in the list
+    if ( fromList->lastPacket == movedPacket) {
+      fromList->lastPacket == movedPacket->previousPacket;
+    }
+  }
+  movedPacket->nextPacket = NULL;
+  movedPacket->previousPacket = NULL;
+
+  //the packet is the first packet in the new list
+  if (toList->firstPacket == NULL ) {
+    toList->firstPacket = movedPacket;
+    toList->lastPacket = movedPacket;
+  }
+  else { //the list has at least one other packet
+    toList->lastPacket->nextPacket = movedPacket;
+    movedPacket->previousPacket = toList->lastPacket;
+    toList->lastPacket = movedPacket;
+  }
+}
+
+void DCCBaseStation::markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList) {
+  //check if packet is already marked
+  for (byte i = packetList->firstNewOrUpdatedIndex; i <= packetList->firstNewOrUpdatedIndex + packetList->newOrUpdatedCount; i++) {
+    if (packetList->newOrUpdatedPackets[i] == currentPacket ) {
+      return;
+    }
+  }
+
+  //if we arrive here, the packet has not been marked as updated yet
+  if (packetList->newOrUpdatedCount == 0) {
+    packetList->firstNewOrUpdatedIndex = 0;
+  }
+  packetList->newOrUpdatedCount++;
+  packetList->newOrUpdatedPackets[packetList->firstNewOrUpdatedIndex + packetList->newOrUpdatedCount] = currentPacket;
 }
 

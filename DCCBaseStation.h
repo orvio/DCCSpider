@@ -25,6 +25,12 @@
 #ifndef DCCBaseStation_h
 #define DCCBaseStation_h
 
+#define CRITICAL_PRIORITY_LIST 0
+#define HIGH_PRIORITY_LIST 1
+#define LOW_PRIORITY_LIST 2
+
+#define PRIORITY_LIST_COUNT 3
+
 #define DECODER_CONSIST_CONTROL 0x00
 #define ADVANCED_OPERATION 0x20
 #define SPEED_REVERSE 0x40
@@ -60,6 +66,7 @@ class DCCBaseStation {
         byte instructionByte;
         unsigned long lastUpdateMillis;
         DCCBufferPacket * nextPacket;
+        DCCBufferPacket * previousPacket;
     };
 
     /**
@@ -75,6 +82,8 @@ class DCCBaseStation {
         DCCBufferPacket * firstPacket;
         DCCBufferPacket * lastPacket;
         DCCBufferPacket ** newOrUpdatedPackets;
+        byte firstNewOrUpdatedIndex = 0;
+        byte newOrUpdatedCount = 0;
     };
 
     class DCCPriorityList
@@ -83,11 +92,10 @@ class DCCBaseStation {
         DCCBufferPacket * packets; /**Memory space for all packets*/
         byte packetCount;
         DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
-        DCCPacketList * currentList; /**The packet list currently being cycled through*/
-        byte currentBit; /**Current bit in the current packet*/
-        DCCPacketList * lowPriorityList;
-        DCCPacketList * highPriorityList;
-        DCCPacketList * criticalPriorityList;
+        DCCBufferPacket * currentCyclePacket; /**The next packet in cycle*/
+        byte currentList = 0; /**The packet list currently being cycled through*/
+        byte currentBit = 0; /**Current bit in the current packet*/
+        DCCPacketList ** packetLists;
         DCCPriorityList(byte packetCount);
       private:
         DCCPacketList *  initPacketList(byte packetCount);
@@ -101,13 +109,16 @@ class DCCBaseStation {
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
     volatile RegisterList * getRegisterList() const;
+    volatile DCCPriorityList * const getPriorityList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
     void setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection);
 
 
   private:
-    volatile DCCPriorityList * _priorityList;
+    void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);
+    void markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList);
+    volatile DCCPriorityList * const _priorityList;
     volatile RegisterList * _registerList;
     CurrentMonitor * _currentMonitor;
     byte _enablePin;
