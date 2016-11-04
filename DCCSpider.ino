@@ -32,6 +32,7 @@ volatile DCCBaseStation::DCCPriorityList * priorityList = dccBaseStation.getPrio
 ISR(TIMER1_COMPB_vect) {
   //if current packet done, select next packet
   if (priorityList->currentBit >= priorityList->currentPacket->usedBits) {
+    priorityList->currentPacket = 0;
     //check for updated packets starting in critical list
     for (byte i = 0; i < PRIORITY_LIST_COUNT; i++) {
       if (priorityList->packetLists[i]->newOrUpdatedCount > 0) {
@@ -48,13 +49,35 @@ ISR(TIMER1_COMPB_vect) {
     }
 
     //select next cycle packet if no updated packets found
-    if (priorityList->currentBit == 0) {
-
+    if (!priorityList->currentPacket) {
+      priorityList->currentCyclePacket = priorityList->currentCyclePacket->nextPacket;
+      while (!priorityList->currentCyclePacket) { //end of list reached; NOTE: This will never finish if no packet has been loaded into any list!
+        priorityList->currentList++;
+        priorityList->currentList = priorityList->currentList % PRIORITY_LIST_COUNT;
+        priorityList->currentCyclePacket = priorityList->packetLists[priorityList->currentList]->firstPacket; //note: this might be NULL!
+      }
+      priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
+      priorityList->currentPacket = &(priorityList->currentCyclePacket->rawPackets[1]);
+      priorityList->currentBit = 0;
     }
   }
 
   //proceed transmitting current packet
-
+  if (priorityList->currentPacket->bytes[priorityList->currentBit / 8] & (0x01 << priorityList->currentBit % 8 ) ) {
+    OCR1A = DCC_ONE_BIT_TOTAL_DURATION_16BIT_TIMER;
+    OCR1B = DCC_ONE_BIT_PULSE_DURATION_16BIT_TIMER;
+    // OCR ## N ## A=DCC_ONE_BIT_TOTAL_DURATION_## BC ##BIT_TIMER;                               /*   set OCRA for timer N to full cycle duration of DCC ONE bit */ \
+    // OCR ## N ## B=DCC_ONE_BIT_PULSE_DURATION_## BC ##BIT_TIMER;                               /*   set OCRB for timer N to half cycle duration of DCC ONE but */ \
+    
+  }
+  else {
+    OCR1A = DCC_ZERO_BIT_TOTAL_DURATION_16BIT_TIMER;
+    OCR1B = DCC_ZERO_BIT_PULSE_DURATION_16BIT_TIMER;
+    //  OCR ## N ## A=DCC_ZERO_BIT_TOTAL_DURATION_## BC ##BIT_TIMER;                              /*   set OCRA for timer N to full cycle duration of DCC ZERO bit */ \
+    //  OCR ## N ## B=DCC_ZERO_BIT_PULSE_DURATION_## BC ##BIT_TIMER;                              /*   set OCRB for timer N to half cycle duration of DCC ZERO bit */ \
+    
+  }
+  priorityList->currentBit++;
 }
 
 LoconetMaster loconetMaster(20);
