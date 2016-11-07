@@ -169,14 +169,29 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCD
   }
 
   //setup packet with new data
+  const byte byteCount = 4;
+  byte bytes[byteCount];
+  bytes[0] = highByte(locoAddress) | 0xC0;
+  bytes[1] = lowByte(locoAddress);
+  bytes[2] = 0x3F;
+  bytes[3] = locoSpeed;
   if ( locoDirection == FORWARD ) {
     currentPacket->instructionByte = SPEED_FORWARD & locoSpeed;
+    bytes[3] |= 0X80; //set forward bit
   }
   else {
     currentPacket->instructionByte = SPEED_REVERSE & locoSpeed;
   }
+  setupPacket(currentPacket, bytes, byteCount);
 
   markPacketUpdated(currentPacket, packetList);
+}
+
+void DCCBaseStation::setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount) {
+  packet->rawPackets[0].bytes[0] = 0xFF; //preamble bits 0-7
+  packet->rawPackets[0].bytes[1] = 0xFF; //preamble bits 8-15
+  //the DCC standard demands at least 14 ones to be sent; we got 16
+  
 }
 
 void DCCBaseStation::movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList) {

@@ -56,7 +56,8 @@ ISR(TIMER1_COMPB_vect) {
         priorityList->currentList = priorityList->currentList % PRIORITY_LIST_COUNT;
         priorityList->currentCyclePacket = priorityList->packetLists[priorityList->currentList]->firstPacket; //note: this might be NULL!
       }
-      priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
+      //move is not necessary, because stuff is moved when the packet is processed after an update
+      //priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
       priorityList->currentPacket = &(priorityList->currentCyclePacket->rawPackets[1]);
       priorityList->currentBit = 0;
     }

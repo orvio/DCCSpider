@@ -118,6 +118,7 @@ class DCCBaseStation {
   private:
     void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);
     void markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList);
+    void setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount);
     volatile DCCPriorityList * const _priorityList;
     volatile RegisterList * _registerList;
     CurrentMonitor * _currentMonitor;
