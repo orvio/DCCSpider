@@ -95,7 +95,7 @@ class DCCBaseStation {
         DCCBufferPacket * currentCyclePacket; /**The next packet in cycle*/
         byte currentList = 0; /**The packet list currently being cycled through*/
         byte currentBit = 0; /**Current bit in the current packet*/
-        DCCPacketList ** packetLists;
+        DCCPacketList ** _packetLists;
         DCCPriorityList(byte packetCount);
       private:
         DCCPacketList *  initPacketList(byte packetCount);

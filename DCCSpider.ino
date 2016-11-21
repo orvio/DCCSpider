@@ -31,8 +31,10 @@ DCCBaseStation dccBaseStation(12, DCC_POWER_ENABLE_PIN, A0, 20);
 volatile DCCBaseStation::DCCPriorityList * priorityList = dccBaseStation.getPriorityList();
 ISR(TIMER1_COMPB_vect) {
   //if current packet done, select next packet
-  if (priorityList->currentBit >= priorityList->currentPacket->usedBits) {
+  if (!priorityList->currentPacket || priorityList->currentBit >= priorityList->currentPacket->usedBits) {
+    //priorityList->currentBit = 0; //for testing only
     priorityList->currentPacket = 0;
+    /*
     //check for updated packets starting in critical list
     for (byte i = 0; i < PRIORITY_LIST_COUNT; i++) {
       if (priorityList->packetLists[i]->newOrUpdatedCount > 0) {
@@ -46,25 +48,28 @@ ISR(TIMER1_COMPB_vect) {
         priorityList->currentBit = 0;
         break; //leave loop
       }
-    }
+    }*/
+
 
     //select next cycle packet if no updated packets found
-    if (!priorityList->currentPacket) {
+    /*if (!priorityList->currentPacket) {
       priorityList->currentCyclePacket = priorityList->currentCyclePacket->nextPacket;
       while (!priorityList->currentCyclePacket) { //end of list reached; NOTE: This will never finish if no packet has been loaded into any list!
         priorityList->currentList++;
         priorityList->currentList = priorityList->currentList % PRIORITY_LIST_COUNT;
-        priorityList->currentCyclePacket = priorityList->packetLists[priorityList->currentList]->firstPacket; //note: this might be NULL!
+        priorityList->currentCyclePacket = priorityList->_packetLists[priorityList->currentList]->firstPacket; //note: this might be NULL!
       }
       //move is not necessary, because stuff is moved when the packet is processed after an update
-      //priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
+      priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
       priorityList->currentPacket = &(priorityList->currentCyclePacket->rawPackets[1]);
       priorityList->currentBit = 0;
-    }
+    }*/
+    priorityList->currentPacket = &(priorityList->packets[0].rawPackets[0]);
+    priorityList->currentBit = 0;
   }
 
   //proceed transmitting current packet
-  if (priorityList->currentPacket->bytes[priorityList->currentBit / 8] & (0x01 << priorityList->currentBit % 8 ) ) {
+  if (priorityList->currentPacket->bytes[priorityList->currentBit / 8] & (0x80 >> priorityList->currentBit % 8 ) ) {
     OCR1A = DCC_ONE_BIT_TOTAL_DURATION_16BIT_TIMER;
     OCR1B = DCC_ONE_BIT_PULSE_DURATION_16BIT_TIMER;
     // OCR ## N ## A=DCC_ONE_BIT_TOTAL_DURATION_## BC ##BIT_TIMER;                               /*   set OCRA for timer N to full cycle duration of DCC ONE bit */ \
@@ -88,6 +93,7 @@ unsigned long shortStartMillis;
 void setup() {
   Serial.begin(115200);            // configure serial interface
   Serial.flush();
+  Serial.println("DCCSpider...");
 
   dccBaseStation.begin(1);
   displayController.begin( 20, 2, "DCCSpider", "V0.00");
