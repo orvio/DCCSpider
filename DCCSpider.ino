@@ -32,40 +32,39 @@ volatile DCCBaseStation::DCCPriorityList * priorityList = dccBaseStation.getPrio
 ISR(TIMER1_COMPB_vect) {
   //if current packet done, select next packet
   if (!priorityList->currentPacket || priorityList->currentBit >= priorityList->currentPacket->usedBits) {
-    //priorityList->currentBit = 0; //for testing only
     priorityList->currentPacket = 0;
-    /*
+
     //check for updated packets starting in critical list
     for (byte i = 0; i < PRIORITY_LIST_COUNT; i++) {
-      if (priorityList->packetLists[i]->newOrUpdatedCount > 0) {
-        priorityList->packetLists[i]->newOrUpdatedPackets[priorityList->packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[1] = \
-            priorityList->packetLists[i]->newOrUpdatedPackets[priorityList->packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[0];
-        priorityList->currentPacket = &(priorityList->packetLists[i]->newOrUpdatedPackets[priorityList->packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[1]);
+      if (priorityList->_packetLists[i]->newOrUpdatedCount > 0) {
+        priorityList->_packetLists[i]->newOrUpdatedPackets[priorityList->_packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[1] = \
+            priorityList->_packetLists[i]->newOrUpdatedPackets[priorityList->_packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[0];
+        priorityList->currentPacket = &(priorityList->_packetLists[i]->newOrUpdatedPackets[priorityList->_packetLists[i]->firstNewOrUpdatedIndex]->rawPackets[1]);
 
         //update newOrUpdatedIndexes
-        priorityList->packetLists[i]->newOrUpdatedCount--;
-        priorityList->packetLists[i]->firstNewOrUpdatedIndex++;
+        priorityList->_packetLists[i]->newOrUpdatedCount--;
+        priorityList->_packetLists[i]->firstNewOrUpdatedIndex++;
         priorityList->currentBit = 0;
         break; //leave loop
       }
-    }*/
-
+    }
 
     //select next cycle packet if no updated packets found
-    /*if (!priorityList->currentPacket) {
-      priorityList->currentCyclePacket = priorityList->currentCyclePacket->nextPacket;
+    if (!priorityList->currentPacket) {
+      if ( priorityList->currentCyclePacket) {
+        priorityList->currentCyclePacket = priorityList->currentCyclePacket->nextPacket;
+      }
+
       while (!priorityList->currentCyclePacket) { //end of list reached; NOTE: This will never finish if no packet has been loaded into any list!
         priorityList->currentList++;
         priorityList->currentList = priorityList->currentList % PRIORITY_LIST_COUNT;
         priorityList->currentCyclePacket = priorityList->_packetLists[priorityList->currentList]->firstPacket; //note: this might be NULL!
       }
       //move is not necessary, because stuff is moved when the packet is processed after an update
-      priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
+      //priorityList->currentCyclePacket->rawPackets[1] = priorityList->currentCyclePacket->rawPackets[0];
       priorityList->currentPacket = &(priorityList->currentCyclePacket->rawPackets[1]);
       priorityList->currentBit = 0;
-    }*/
-    priorityList->currentPacket = &(priorityList->packets[0].rawPackets[0]);
-    priorityList->currentBit = 0;
+    }
   }
 
   //proceed transmitting current packet
@@ -74,14 +73,14 @@ ISR(TIMER1_COMPB_vect) {
     OCR1B = DCC_ONE_BIT_PULSE_DURATION_16BIT_TIMER;
     // OCR ## N ## A=DCC_ONE_BIT_TOTAL_DURATION_## BC ##BIT_TIMER;                               /*   set OCRA for timer N to full cycle duration of DCC ONE bit */ \
     // OCR ## N ## B=DCC_ONE_BIT_PULSE_DURATION_## BC ##BIT_TIMER;                               /*   set OCRB for timer N to half cycle duration of DCC ONE but */ \
-    
+
   }
   else {
     OCR1A = DCC_ZERO_BIT_TOTAL_DURATION_16BIT_TIMER;
     OCR1B = DCC_ZERO_BIT_PULSE_DURATION_16BIT_TIMER;
     //  OCR ## N ## A=DCC_ZERO_BIT_TOTAL_DURATION_## BC ##BIT_TIMER;                              /*   set OCRA for timer N to full cycle duration of DCC ZERO bit */ \
     //  OCR ## N ## B=DCC_ZERO_BIT_PULSE_DURATION_## BC ##BIT_TIMER;                              /*   set OCRB for timer N to half cycle duration of DCC ZERO bit */ \
-    
+
   }
   priorityList->currentBit++;
 }

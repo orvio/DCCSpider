@@ -281,10 +281,12 @@ void DCCBaseStation::movePacket(DCCBufferPacket * movedPacket, DCCPacketList * f
 
   //the packet is the first packet in the new list
   if (!toList->firstPacket) {
+    Serial.println("Packet is first in list.");
     toList->firstPacket = movedPacket;
     toList->lastPacket = movedPacket;
   }
   else { //the list has at least one other packet
+    Serial.println("Packet Attached to end of list.");
     toList->lastPacket->nextPacket = movedPacket;
     movedPacket->previousPacket = toList->lastPacket;
     toList->lastPacket = movedPacket;
@@ -305,8 +307,8 @@ void DCCBaseStation::markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacke
     packetList->firstNewOrUpdatedIndex = 0;
   }
 
-  packetList->newOrUpdatedCount++;
   packetList->newOrUpdatedPackets[packetList->firstNewOrUpdatedIndex + packetList->newOrUpdatedCount] = currentPacket;
+  packetList->newOrUpdatedCount++;
   Serial.print("Packet marked as updated. Total updated packets in list: ");
   Serial.println(packetList->newOrUpdatedCount, DEC);
 }
