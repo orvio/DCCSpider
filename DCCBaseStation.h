@@ -19,7 +19,6 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "Arduino.h"
-#include "PacketRegister.h"
 #include "CurrentMonitor.h"
 
 #ifndef DCCBaseStation_h
@@ -110,7 +109,6 @@ class DCCBaseStation {
 
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
-    volatile RegisterList * getRegisterList() const;
     volatile DCCPriorityList * const getPriorityList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
@@ -123,7 +121,6 @@ class DCCBaseStation {
     void setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount);
     void setupPacketBitStream(volatile DCCRawPacket * packet, byte * bytes, byte byteCount);
     volatile DCCPriorityList * const _priorityList;
-    volatile RegisterList * _registerList;
     CurrentMonitor * _currentMonitor;
     byte _enablePin;
     byte _dccSignalPin;

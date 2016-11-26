@@ -60,7 +60,6 @@ DCCBaseStation::DCCPriorityList::DCCPriorityList(byte packetCount)
 DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount):
   _priorityList(new volatile DCCPriorityList(registerCount))
 {
-  _registerList = new volatile RegisterList(registerCount);
   _currentMonitor = new CurrentMonitor(currentSensePin, enablePin);
   _enablePin = enablePin;
   _dccSignalPin = dccSignalPin;
@@ -71,11 +70,6 @@ DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSe
 void DCCBaseStation::enableTrackPower()
 {
   digitalWrite(_enablePin, HIGH);
-}
-
-volatile RegisterList * DCCBaseStation::getRegisterList() const
-{
-  return _registerList;
 }
 
 volatile DCCBaseStation::DCCPriorityList * const DCCBaseStation::getPriorityList() const
@@ -113,8 +107,6 @@ void DCCBaseStation::begin(byte timerNo)
       OCR1B = DCC_ONE_BIT_PULSE_DURATION_16BIT_TIMER;
 
       pinMode(_enablePin, OUTPUT);  // master enable for motor channel A
-
-      _registerList->loadPacket(1, RegisterList::idlePacket, 2, 0); // load idle packet into register 1
 
       bitSet(TIMSK1, OCIE1B);   // enable interrupt vector for Timer 1 Output Compare B Match (OCR1B)
       break;

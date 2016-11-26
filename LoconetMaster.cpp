@@ -56,9 +56,14 @@ byte LoconetMaster::createLocoSlot(int locoAddress) {
     if (!(_slotData[slotIndex].slotStatus & LOCOSTAT_MASK) ) {
       _slotData[slotIndex].locoAddress = locoAddress;
       _slotData[slotIndex].slotStatus = LOCO_IDLE | DEC_MODE_128;
+      Serial.print("Created slot for loco address ");
+      Serial.print(locoAddress, DEC);
+      Serial.print(". Slot number: ");
+      Serial.println(slotIndex + 1, DEC);
       return slotIndex + 1;
     }
   }
+
   return 0;
 }
 
@@ -87,12 +92,6 @@ void LoconetMaster::processReceivedMessages()
     }
 
     Serial.println(logString);
-
-    /*for (byte lineNo = 0; logString.length() > 0; lineNo++) {
-      lcd.setCursor(0, lineNo);
-      lcd.print(logString.substring(0, 20));
-      logString = logString.substring(20);
-      }*/
 
     lnMsg replyMessage;
 
@@ -137,7 +136,6 @@ void LoconetMaster::processReceivedMessages()
     {
       byte slotNumber = receivedMessage->data[1];
       _slotData[slotNumber - 1].locoSpeed = receivedMessage->data[2];
-      _dccBaseStation->getRegisterList()->setThrottle(3, _slotData[slotNumber - 1].locoAddress, _slotData[slotNumber - 1].locoSpeed, _slotData[slotNumber - 1].directionF0F4 & DIRF_DIR);
       DCCBaseStation::DCCDirection locoDirection;
       if (_slotData[slotNumber - 1].directionF0F4 & DIRF_DIR) {
         locoDirection = DCCBaseStation::FORWARD;
