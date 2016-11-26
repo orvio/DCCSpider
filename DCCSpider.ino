@@ -64,7 +64,7 @@ ISR(TIMER1_COMPB_vect) {
       }
 
       //no packets loaded, send idle packet
-      if (!priorityList->currentPacket) {
+      if (!priorityList->currentCyclePacket) {
         priorityList->currentPacket = &(priorityList->_idlePacket);
       }
       else { //packet found
