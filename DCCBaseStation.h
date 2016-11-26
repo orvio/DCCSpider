@@ -91,12 +91,14 @@ class DCCBaseStation {
       public:
         DCCBufferPacket * packets; /**Memory space for all packets*/
         byte packetCount;
-        DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
+        volatile DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
         DCCBufferPacket * currentCyclePacket; /**The next packet in cycle*/
         byte currentList = 0; /**The packet list currently being cycled through*/
         byte currentBit = 0; /**Current bit in the current packet*/
         DCCPacketList ** _packetLists;
         DCCPriorityList(byte packetCount);
+        DCCRawPacket _idlePacket;
+        
       private:
         DCCPacketList *  initPacketList(byte packetCount);
     };
@@ -119,6 +121,7 @@ class DCCBaseStation {
     void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);
     void markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList);
     void setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount);
+    void setupPacketBitStream(volatile DCCRawPacket * packet, byte * bytes, byte byteCount);
     volatile DCCPriorityList * const _priorityList;
     volatile RegisterList * _registerList;
     CurrentMonitor * _currentMonitor;

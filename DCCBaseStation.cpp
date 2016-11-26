@@ -86,17 +86,11 @@ volatile DCCBaseStation::DCCPriorityList * const DCCBaseStation::getPriorityList
 void DCCBaseStation::begin(byte timerNo)
 {
   //setup IDLE packet;
-  /*_priorityList->packets[0].locoAddress  = 0xFF;
-    _priorityList->packets[0].instructionByte = 0x00;
-    const byte byteCount = 2;
-    byte bytes[byteCount];
-    bytes[0] = _priorityList->packets[0].locoAddress;
-    bytes[1] = _priorityList->packets[0].instructionByte;
-    movePacket(&(_priorityList->packets[0]), NULL, _priorityList->packetLists[LOW_PRIORITY_LIST]);
-
-    setupPacket(&(_priorityList->packets[0]), bytes, byteCount);
-    markPacketUpdated(&(_priorityList->packets[0]), _priorityList->packetLists[LOW_PRIORITY_LIST]);*/
-  setLocoSpeed(1101, 10, FORWARD);
+  const byte byteCount = 2;
+  byte bytes[byteCount];
+  bytes[0] = 0XFF;
+  bytes[1] = 0x00;
+  setupPacketBitStream(&(_priorityList->_idlePacket), bytes, byteCount);
 
   switch (timerNo)
   {
@@ -208,32 +202,36 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCD
 }
 
 void DCCBaseStation::setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount) {
+  setupPacketBitStream( &(packet->rawPackets[0]), bytes, byteCount);
+
+}
+
+void DCCBaseStation::setupPacketBitStream(volatile DCCRawPacket * packet, byte * bytes, byte byteCount) {
   Serial.print("Setting up packet data. Data bytes: ");
   for ( int i = 0; i < byteCount; i++) {
     Serial.print(bytes[i], HEX);
     Serial.print(" ");
   }
 
-  //Serial.println(packetList->newOrUpdatedCount, DEC);
-  packet->rawPackets[0].usedBits = 2 * 8 + byteCount * 9 + 1 + 8; //16 bit preamble, data bits + 0s, checksum
+  packet->usedBits = 2 * 8 + byteCount * 9 + 1 + 8; //16 bit preamble, data bits + 0s, checksum
   Serial.print("Total packet bit count: ");
-  Serial.println(packet->rawPackets[0].usedBits, DEC);
-  packet->rawPackets[0].bytes[0] = 0xFF; //preamble bits 0-7
-  packet->rawPackets[0].bytes[1] = 0xFF; //preamble bits 8-15
+  Serial.println(packet->usedBits, DEC);
+  packet->bytes[0] = 0xFF; //preamble bits 0-7
+  packet->bytes[1] = 0xFF; //preamble bits 8-15
   //the DCC standard demands at least 14 ones to be sent; we got 16
 
   //setup bits for data bytes
   byte checkSum  = 0;
   for ( byte i = 0; i <= byteCount; i++) {
     if (i >= byteCount) { //last iteration, we are after the end of the bytes array
-      packet->rawPackets[0].bytes[i + 2] = (bytes[i - 1] << (8 - i));
+      packet->bytes[i + 2] = (bytes[i - 1] << (8 - i));
     }
     else if ( i > 0 ) {
-      packet->rawPackets[0].bytes[i + 2] = (bytes[i - 1] << (8 - i)) | (bytes[i] >> (i + 1));
+      packet->bytes[i + 2] = (bytes[i - 1] << (8 - i)) | (bytes[i] >> (i + 1));
       checkSum ^= bytes[i];
     }
     else { //first iteration
-      packet->rawPackets[0].bytes[i + 2] = (bytes[i] >> (i + 1));
+      packet->bytes[i + 2] = (bytes[i] >> (i + 1));
       checkSum ^= bytes[i];
     }
   }
@@ -242,13 +240,13 @@ void DCCBaseStation::setupPacket(DCCBufferPacket * packet, byte * bytes, byte by
   Serial.println(checkSum, HEX);
 
   //setup bits for checksum
-  packet->rawPackets[0].bytes[byteCount + 2] |= checkSum >> byteCount + 1;
-  packet->rawPackets[0].bytes[byteCount + 2 + 1] = checkSum << 8 - (byteCount + 1);
+  packet->bytes[byteCount + 2] |= checkSum >> byteCount + 1;
+  packet->bytes[byteCount + 2 + 1] = checkSum << 8 - (byteCount + 1);
 
   Serial.print("Resulting bit stream: ");
-  for (byte currentBit = 0; currentBit < packet->rawPackets[0].usedBits; currentBit++) {
+  for (byte currentBit = 0; currentBit < packet->usedBits; currentBit++) {
     //Serial.println(0x80 >> (currentBit % 8),HEX);
-    Serial.print((packet->rawPackets[0].bytes[currentBit / 8 ] & (0x80 >> (currentBit % 8) ) ) != 0, BIN);
+    Serial.print((packet->bytes[currentBit / 8 ] & (0x80 >> (currentBit % 8) ) ) != 0, BIN);
     if (!((currentBit + 1) % 8)) {
       Serial.print(" ");
     }
