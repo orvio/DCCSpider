@@ -19,12 +19,52 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 #include "DCCBaseStation.h"
 
-DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount)
+DCCBaseStation::DCCPacketList * DCCBaseStation::DCCPriorityList::initPacketList(byte packetCount)
 {
-  _registerList = new volatile RegisterList(registerCount);
+  DCCPacketList * packetList =  new DCCPacketList;
+  packetList->firstPacket = 0;
+  packetList->lastPacket = 0;
+
+  packetList->newOrUpdatedPackets = new DCCBufferPacket*[packetCount];
+  for (int i = 0; i < packetCount; i++)
+  {
+    packetList->newOrUpdatedPackets[i] = 0;
+  }
+  return packetList;
+}
+
+DCCBaseStation::DCCPriorityList::DCCPriorityList(byte packetCount)
+{
+  this->packetCount = packetCount;
+  packets = new DCCBaseStation::DCCBufferPacket[packetCount];
+  for ( byte i = 0; i < packetCount; i++)
+  {
+    packets[i].locoAddress = 0;
+    packets[i].instructionByte = 0;
+    packets[i].lastUpdateMillis = millis();
+    packets[i].previousPacket = NULL;
+    packets[i].nextPacket = NULL;
+  }
+  currentPacket = NULL;
+  currentCyclePacket = NULL;
+  currentList = 0;
+  currentBit = 0;
+
+  _packetLists = new DCCBaseStation::DCCPacketList*[PRIORITY_LIST_COUNT];
+  for (byte i = 0; i < PRIORITY_LIST_COUNT; i++) {
+    _packetLists[i] = initPacketList(packetCount);
+  }
+}
+
+
+DCCBaseStation::DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount):
+  _priorityList(new volatile DCCPriorityList(registerCount))
+{
   _currentMonitor = new CurrentMonitor(currentSensePin, enablePin);
   _enablePin = enablePin;
   _dccSignalPin = dccSignalPin;
+
+
 }
 
 void DCCBaseStation::enableTrackPower()
@@ -32,13 +72,20 @@ void DCCBaseStation::enableTrackPower()
   digitalWrite(_enablePin, HIGH);
 }
 
-volatile RegisterList * DCCBaseStation::getRegisterList() const
+volatile DCCBaseStation::DCCPriorityList * const DCCBaseStation::getPriorityList() const
 {
-  return _registerList;
+  return _priorityList;
 }
 
 void DCCBaseStation::begin(byte timerNo)
 {
+  //setup IDLE packet;
+  const byte byteCount = 2;
+  byte bytes[byteCount];
+  bytes[0] = 0XFF;
+  bytes[1] = 0x00;
+  setupPacketBitStream(&(_priorityList->_idlePacket), bytes, byteCount);
+
   switch (timerNo)
   {
     case 1:
@@ -61,8 +108,6 @@ void DCCBaseStation::begin(byte timerNo)
 
       pinMode(_enablePin, OUTPUT);  // master enable for motor channel A
 
-      _registerList->loadPacket(1, RegisterList::idlePacket, 2, 0); // load idle packet into register 1
-
       bitSet(TIMSK1, OCIE1B);   // enable interrupt vector for Timer 1 Output Compare B Match (OCR1B)
       break;
   }
@@ -70,5 +115,191 @@ void DCCBaseStation::begin(byte timerNo)
 
 boolean DCCBaseStation::checkCurrentDraw() {
   return _currentMonitor->check();
+}
+
+void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection) {
+  //find out wheter a loco speed packet is already in the lists
+  //speed stuff is either high or critical priority
+  DCCBufferPacket * currentPacket = NULL;
+  DCCPacketList * packetList = NULL;
+
+  //check high prioriy list
+  for (currentPacket = _priorityList->_packetLists[HIGH_PRIORITY_LIST]->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+    if (currentPacket->locoAddress == locoAddress) { //hit
+      packetList = _priorityList->_packetLists[HIGH_PRIORITY_LIST];
+      break;
+    }
+  }
+
+  //check critical priority list
+  if (currentPacket == NULL) {
+    for (currentPacket = _priorityList->_packetLists[CRITICAL_PRIORITY_LIST]->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+      if (currentPacket->locoAddress == locoAddress) { //hit
+        packetList = _priorityList->_packetLists[CRITICAL_PRIORITY_LIST];
+        break;
+      }
+    }
+  }
+
+  //create packet if still not found
+  if (currentPacket == NULL) {
+    //find first available spot
+    for ( int i = 0; i < _priorityList->packetCount; i++ ) {
+      if ( _priorityList->packets[i].locoAddress == 0x00 || _priorityList->packets[i].locoAddress == 0xFF) {
+        Serial.print("Spawning packet in slot: ");
+        Serial.println(i, DEC);
+        currentPacket =  &(_priorityList->packets[i]);
+        currentPacket->locoAddress = locoAddress;
+        currentPacket->instructionByte = 0;
+        break;
+      }
+    }
+
+    //new speed packets go into high priority list by default
+    packetList = _priorityList->_packetLists[HIGH_PRIORITY_LIST];
+    movePacket(currentPacket, NULL, packetList);
+  }
+
+  //compare speeds to determine priority change
+  if ( currentPacket->instructionByte != 0 ) {
+    byte currentSpeed = currentPacket->instructionByte & 0x1F;
+    //packet goes into critical list if speed is lower or (emergency) stop is instructed
+    if ((locoSpeed < currentSpeed) || locoSpeed == 0 || locoSpeed == 1) {
+      movePacket(currentPacket, packetList, _priorityList->_packetLists[CRITICAL_PRIORITY_LIST]);
+      packetList = _priorityList->_packetLists[CRITICAL_PRIORITY_LIST];
+    }
+    else { //high priority otherwise
+      movePacket(currentPacket, packetList, _priorityList->_packetLists[HIGH_PRIORITY_LIST]);
+      packetList = _priorityList->_packetLists[HIGH_PRIORITY_LIST];
+    }
+  }
+
+  //setup packet with new data
+  const byte byteCount = 4;
+  byte bytes[byteCount];
+  bytes[0] = highByte(locoAddress) | 0xC0;
+  bytes[1] = lowByte(locoAddress);
+  bytes[2] = 0x3F;
+  bytes[3] = locoSpeed;
+  if ( locoDirection == FORWARD ) {
+    currentPacket->instructionByte = SPEED_FORWARD & locoSpeed;
+    bytes[3] |= 0X80; //set forward bit
+  }
+  else {
+    currentPacket->instructionByte = SPEED_REVERSE & locoSpeed;
+  }
+  setupPacket(currentPacket, bytes, byteCount);
+
+  markPacketUpdated(currentPacket, packetList);
+}
+
+void DCCBaseStation::setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount) {
+  setupPacketBitStream( &(packet->rawPackets[0]), bytes, byteCount);
+
+}
+
+void DCCBaseStation::setupPacketBitStream(volatile DCCRawPacket * packet, byte * bytes, byte byteCount) {
+  Serial.print("Setting up packet data. Data bytes: ");
+  for ( int i = 0; i < byteCount; i++) {
+    Serial.print(bytes[i], HEX);
+    Serial.print(" ");
+  }
+
+  packet->usedBits = 2 * 8 + byteCount * 9 + 1 + 8; //16 bit preamble, data bits + 0s, checksum
+  Serial.print("Total packet bit count: ");
+  Serial.println(packet->usedBits, DEC);
+  packet->bytes[0] = 0xFF; //preamble bits 0-7
+  packet->bytes[1] = 0xFF; //preamble bits 8-15
+  //the DCC standard demands at least 14 ones to be sent; we got 16
+
+  //setup bits for data bytes
+  byte checkSum  = 0;
+  for ( byte i = 0; i <= byteCount; i++) {
+    if (i >= byteCount) { //last iteration, we are after the end of the bytes array
+      packet->bytes[i + 2] = (bytes[i - 1] << (8 - i));
+    }
+    else if ( i > 0 ) {
+      packet->bytes[i + 2] = (bytes[i - 1] << (8 - i)) | (bytes[i] >> (i + 1));
+      checkSum ^= bytes[i];
+    }
+    else { //first iteration
+      packet->bytes[i + 2] = (bytes[i] >> (i + 1));
+      checkSum ^= bytes[i];
+    }
+  }
+
+  Serial.print("Packet check sum: ");
+  Serial.println(checkSum, HEX);
+
+  //setup bits for checksum
+  packet->bytes[byteCount + 2] |= checkSum >> byteCount + 1;
+  packet->bytes[byteCount + 2 + 1] = checkSum << 8 - (byteCount + 1);
+
+  Serial.print("Resulting bit stream: ");
+  for (byte currentBit = 0; currentBit < packet->usedBits; currentBit++) {
+    //Serial.println(0x80 >> (currentBit % 8),HEX);
+    Serial.print((packet->bytes[currentBit / 8 ] & (0x80 >> (currentBit % 8) ) ) != 0, BIN);
+    if (!((currentBit + 1) % 8)) {
+      Serial.print(" ");
+    }
+  }
+  Serial.println();
+}
+
+void DCCBaseStation::movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList) {
+  //if lists are identical we have nothing to do
+  if (fromList == toList) {
+    Serial.println("Not moving packet");
+    return;
+  }
+
+  if (fromList) {
+    Serial.println("Detaching packet from old list");
+    //detach from current list first
+    if ( fromList->firstPacket == movedPacket) {
+      fromList->firstPacket = movedPacket->nextPacket;
+    }
+    //this might happen if the packet isthe only packet in the list
+    if ( fromList->lastPacket == movedPacket) {
+      fromList->lastPacket == movedPacket->previousPacket;
+    }
+  }
+
+  Serial.println("Attaching Packet to new list");
+  movedPacket->nextPacket = 0;
+  movedPacket->previousPacket = 0;
+
+  //the packet is the first packet in the new list
+  if (!toList->firstPacket) {
+    Serial.println("Packet is first in list.");
+    toList->firstPacket = movedPacket;
+    toList->lastPacket = movedPacket;
+  }
+  else { //the list has at least one other packet
+    Serial.println("Packet Attached to end of list.");
+    toList->lastPacket->nextPacket = movedPacket;
+    movedPacket->previousPacket = toList->lastPacket;
+    toList->lastPacket = movedPacket;
+  }
+}
+
+void DCCBaseStation::markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList) {
+  //check if packet is already marked
+  for (byte i = packetList->firstNewOrUpdatedIndex; i <= packetList->firstNewOrUpdatedIndex + packetList->newOrUpdatedCount; i++) {
+    if (packetList->newOrUpdatedPackets[i] == currentPacket ) {
+      Serial.println("Packet already marked as updated");
+      return;
+    }
+  }
+
+  //if we arrive here, the packet has not been marked as updated yet
+  if (packetList->newOrUpdatedCount == 0) {
+    packetList->firstNewOrUpdatedIndex = 0;
+  }
+
+  packetList->newOrUpdatedPackets[packetList->firstNewOrUpdatedIndex + packetList->newOrUpdatedCount] = currentPacket;
+  packetList->newOrUpdatedCount++;
+  Serial.print("Packet marked as updated. Total updated packets in list: ");
+  Serial.println(packetList->newOrUpdatedCount, DEC);
 }
 

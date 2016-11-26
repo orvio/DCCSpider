@@ -19,23 +19,108 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include "Arduino.h"
-#include "PacketRegister.h"
 #include "CurrentMonitor.h"
 
 #ifndef DCCBaseStation_h
 #define DCCBaseStation_h
 
+#define CRITICAL_PRIORITY_LIST 0
+#define HIGH_PRIORITY_LIST 1
+#define LOW_PRIORITY_LIST 2
+
+#define PRIORITY_LIST_COUNT 3
+
+#define DECODER_CONSIST_CONTROL 0x00
+#define ADVANCED_OPERATION 0x20
+#define SPEED_REVERSE 0x40
+#define SPEED_FORWARD 0x60
+#define FUNCTION_GROUP_F0F4 0x80
+#define FUNCION_GROUP_F5F12 0xA0
+#define FUTURE_EXPANSION 0xC0
+#define CV_ACCESS 0xE0
+
 class DCCBaseStation {
   public:
+    /**
+      The DCCRawPacket consists of data ready to transmit to the track with minimal overhead in interrupt routines.
+    */
+    class DCCRawPacket
+    {
+      public:
+        byte bytes[10];
+        byte usedBits = 0;
+    };
+
+    /**
+      The DCCBufferPacket is the internal representation of DCCPackets.
+
+      The data contain two DCCRawPackets. The packet at index 0 can be modified at any time.
+      The packet at index 1 is the dataspace used by the interrupt routines which will also update the raw data when neccessary.
+    */
+    class DCCBufferPacket
+    {
+      public:
+        DCCRawPacket rawPackets[2]; /**Data at index 0 is always new stuff. Data at index 1 is always stuff potentially currently being transmitted*/
+        unsigned int locoAddress;
+        byte instructionByte;
+        unsigned long lastUpdateMillis;
+        DCCBufferPacket * nextPacket;
+        DCCBufferPacket * previousPacket;
+    };
+
+    /**
+       The DCCPacketList serves as an organizational layer.
+
+       This struct does not actually contain any packets but points to the first packet in the
+       list. This allows packets to be shuffled between the priorities without having to
+       copy anything.
+    */
+    class DCCPacketList
+    {
+      public:
+        DCCBufferPacket * firstPacket;
+        DCCBufferPacket * lastPacket;
+        DCCBufferPacket ** newOrUpdatedPackets;
+        byte firstNewOrUpdatedIndex = 0;
+        byte newOrUpdatedCount = 0;
+    };
+
+    class DCCPriorityList
+    {
+      public:
+        DCCBufferPacket * packets; /**Memory space for all packets*/
+        byte packetCount;
+        volatile DCCRawPacket * currentPacket; /**The packet currently being transmitted*/
+        DCCBufferPacket * currentCyclePacket; /**The next packet in cycle*/
+        byte currentList = 0; /**The packet list currently being cycled through*/
+        byte currentBit = 0; /**Current bit in the current packet*/
+        DCCPacketList ** _packetLists;
+        DCCPriorityList(byte packetCount);
+        DCCRawPacket _idlePacket;
+        
+      private:
+        DCCPacketList *  initPacketList(byte packetCount);
+    };
+
+    typedef enum {
+      FORWARD,
+      REVERSE
+    } DCCDirection;
+
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
-    volatile RegisterList * getRegisterList() const;
+    volatile DCCPriorityList * const getPriorityList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
-    
+    void setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection);
+
 
   private:
-    volatile RegisterList * _registerList;
+    void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);
+    void markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList);
+    void setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount);
+    void setupPacketBitStream(volatile DCCRawPacket * packet, byte * bytes, byte byteCount);
+    volatile DCCPriorityList * const _priorityList;
     CurrentMonitor * _currentMonitor;
     byte _enablePin;
     byte _dccSignalPin;
