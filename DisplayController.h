@@ -40,6 +40,7 @@ class DisplayController
 
     void updateDisplay();
 
+    void setStaticString(String staticString);
 
   private:
     LiquidCrystal * _display;

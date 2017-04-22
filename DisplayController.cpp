@@ -137,6 +137,10 @@ void DisplayController::updateDisplay()
   }
 }
 
+void DisplayController::setStaticString(String staticString) {
+  _staticString = staticString;
+}
+
 int DisplayController::freeRam ()
 {
   extern int __heap_start, *__brkval;
