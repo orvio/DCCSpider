@@ -137,8 +137,8 @@ void DisplayController::updateDisplay()
   }
 }
 
-void DisplayController::setStaticString(String staticString) {
-  _staticString = staticString;
+void DisplayController::setInputString(String inputString) {
+  _inputString = inputString;
 }
 
 int DisplayController::freeRam ()
