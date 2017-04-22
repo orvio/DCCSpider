@@ -15,8 +15,28 @@
    You should have received a copy of the GNU General Public License
    along with DCCSpider.  If not, see <http://www.gnu.org/licenses/>.
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+#include "Arduino.h"
+#include <Keypad.h>
 
 #ifndef UIController_h
 #define UIController_h
 
+#include "DisplayController.h"
+
+
+/**
+   This class contains the current state of the UI and processes inputs and updates the display status accordingly.
+*/
+class UIController
+{
+  public:
+    UIController(DisplayController * displayController, Keypad * keypad);
+    void begin();
+    void updateUI();
+
+  private:
+    DisplayController  & _displayController ;
+    Keypad  & _keypad;
+    String _addressString;
+};
 #endif

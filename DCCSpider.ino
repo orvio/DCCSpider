@@ -15,13 +15,22 @@
   You should have received a copy of the GNU General Public License
   along with DCCSpider.  If not, see <http://www.gnu.org/licenses/>.
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-#include "DisplayController.h"
+#include "UIController.h"
 #include "LoconetMaster.h"
 #include "DCCBaseStation.h"
 
 #define DCC_POWER_ENABLE_PIN 3
-
-DisplayController displayController(15, 40, 16, 38, 17, 36, 18, 34, 19, 32, 20);
+const byte ROWS = 4;
+const byte COLS = 4;
+char keys[ROWS][COLS] = {
+  {'7', '8', '9', '>'},
+  {'4', '5', '6', '<'},
+  {'1', '2', '3', ' '},
+  {'C', '0', 'E', '.'}
+};
+byte rowPins[ROWS] = {23, 25, 27, 29};
+byte colPins[COLS] = {37, 35, 33, 31};
+UIController uiController(new DisplayController(15, 40, 16, 38, 17, 36, 18, 34, 19, 32, 20), new Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS));
 DCCBaseStation dccBaseStation(12, DCC_POWER_ENABLE_PIN, A0, 20);
 
 /*ISR(TIMER1_COMPB_vect) {             // set interrupt service for OCR1B of TIMER-1 which flips direction bit of Motor Shield Channel A controlling Main Track
@@ -105,8 +114,8 @@ void setup() {
   Serial.println("DCCSpider...");
 
   dccBaseStation.begin(1);
-  displayController.begin( 20, 2, "DCCSpider", "V0.00");
-  displayController.setDisplayState(DisplayController::EnterDispatchAddress);
+  uiController.begin();
+
   loconetMaster.begin(46, &dccBaseStation);
 
   dccBaseStation.enableTrackPower();
@@ -122,7 +131,6 @@ void loop() {
     shortStartMillis = millis();
   }
 
-
-  displayController.updateDisplay();
+  uiController.updateUI();
   loconetMaster.processReceivedMessages();
 }
