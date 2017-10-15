@@ -193,6 +193,52 @@ void DCCBaseStation::setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCD
   markPacketUpdated(currentPacket, packetList);
 }
 
+void DCCBaseStation::setLocoFunctions(unsigned int locoAddress, byte locoF0F4) {
+  //find out wheter a function group one packet is already in the lists
+  //function stuff is low priority
+  DCCBufferPacket * currentPacket = NULL;
+  DCCPacketList * packetList = NULL;
+
+  //check low prioriy list
+  for (currentPacket = _priorityList->_packetLists[LOW_PRIORITY_LIST]->firstPacket; currentPacket != NULL; currentPacket = currentPacket->nextPacket) {
+    if (currentPacket->locoAddress == locoAddress) { //hit
+      packetList = _priorityList->_packetLists[LOW_PRIORITY_LIST];
+      break;
+    }
+  }
+
+  //create packet if not found
+  if (currentPacket == NULL) {
+    //find first available spot
+    for ( int i = 0; i < _priorityList->packetCount; i++ ) {
+      if ( _priorityList->packets[i].locoAddress == 0x00 || _priorityList->packets[i].locoAddress == 0xFF) {
+        Serial.print("Spawning packet in slot: ");
+        Serial.println(i, DEC);
+        currentPacket =  &(_priorityList->packets[i]);
+        currentPacket->locoAddress = locoAddress;
+        currentPacket->instructionByte = 0;
+        break;
+      }
+    }
+
+    //function packets go into low priority list
+    packetList = _priorityList->_packetLists[LOW_PRIORITY_LIST];
+    movePacket(currentPacket, NULL, packetList);
+  }
+
+  //setup packet with new data
+  const byte byteCount = 3;
+  byte bytes[byteCount];
+  bytes[0] = highByte(locoAddress) | 0xC0;
+  bytes[1] = lowByte(locoAddress);
+  bytes[2] = (locoF0F4 & 0x1F) | 0x80;
+
+  setupPacket(currentPacket, bytes, byteCount);
+
+  markPacketUpdated(currentPacket, packetList);
+
+}
+
 void DCCBaseStation::setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount) {
   setupPacketBitStream( &(packet->rawPackets[0]), bytes, byteCount);
 

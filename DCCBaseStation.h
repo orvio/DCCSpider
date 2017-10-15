@@ -97,7 +97,7 @@ class DCCBaseStation {
         DCCPacketList ** _packetLists;
         DCCPriorityList(byte packetCount);
         DCCRawPacket _idlePacket;
-        
+
       private:
         DCCPacketList *  initPacketList(byte packetCount);
     };
@@ -113,7 +113,7 @@ class DCCBaseStation {
     void enableTrackPower();
     boolean checkCurrentDraw();
     void setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection);
-
+    void setLocoFunctions(unsigned int locoAddress, byte locoF0F4);
 
   private:
     void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);

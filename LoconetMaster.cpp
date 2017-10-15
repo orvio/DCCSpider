@@ -149,6 +149,8 @@ void LoconetMaster::processReceivedMessages()
     {
       byte slotNumber = receivedMessage->data[1];
       _slotData[slotNumber - 1].directionF0F4 = receivedMessage->data[2];
+
+      byte locoF0F4 = _slotData[slotNumber - 1].directionF0F4 & 0x1F; //Strip direction info
     }
   }
 }
