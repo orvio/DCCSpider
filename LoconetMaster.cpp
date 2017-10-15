@@ -151,6 +151,7 @@ void LoconetMaster::processReceivedMessages()
       _slotData[slotNumber - 1].directionF0F4 = receivedMessage->data[2];
 
       byte locoF0F4 = _slotData[slotNumber - 1].directionF0F4 & 0x1F; //Strip direction info
+      _dccBaseStation->setLocoFunctions(_slotData[slotNumber - 1].locoAddress, locoF0F4);
     }
   }
 }
