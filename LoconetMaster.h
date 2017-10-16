@@ -36,6 +36,7 @@ class LoconetMaster
       int locoAddress = 0;
       byte locoSpeed = 0;
       byte directionF0F4 = 0;
+      byte slotSound = 0;
       int deviceID = 0;
     } SlotData;
 
