@@ -41,6 +41,13 @@
 
 class DCCBaseStation {
   public:
+    typedef enum {
+      LOCOSPEED,
+      FUNCTIONF0F4,
+      FUNCTIONF5F8,
+      FUNCTIONF9F12,
+    } DCCInstruction;
+
     /**
       The DCCRawPacket consists of data ready to transmit to the track with minimal overhead in interrupt routines.
     */
@@ -62,6 +69,7 @@ class DCCBaseStation {
       public:
         DCCRawPacket rawPackets[2]; /**Data at index 0 is always new stuff. Data at index 1 is always stuff potentially currently being transmitted*/
         unsigned int locoAddress;
+        DCCInstruction instructionType;
         byte instructionByte;
         unsigned long lastUpdateMillis;
         DCCBufferPacket * nextPacket;
@@ -83,6 +91,8 @@ class DCCBaseStation {
         DCCBufferPacket ** newOrUpdatedPackets;
         byte firstNewOrUpdatedIndex = 0;
         byte newOrUpdatedCount = 0;
+
+        DCCBufferPacket * findPacket(unsigned int locoAddress, DCCInstruction dccInstruction);
     };
 
     class DCCPriorityList
@@ -97,7 +107,7 @@ class DCCBaseStation {
         DCCPacketList ** _packetLists;
         DCCPriorityList(byte packetCount);
         DCCRawPacket _idlePacket;
-        
+
       private:
         DCCPacketList *  initPacketList(byte packetCount);
     };
@@ -107,19 +117,25 @@ class DCCBaseStation {
       REVERSE
     } DCCDirection;
 
+
+
     DCCBaseStation(byte dccSignalPin, byte enablePin, byte currentSensePin, byte registerCount);
     void begin(byte timerNo);
     volatile DCCPriorityList * const getPriorityList() const;
     void enableTrackPower();
     boolean checkCurrentDraw();
     void setLocoSpeed(unsigned int locoAddress, byte locoSpeed, DCCDirection locoDirection);
-
+    void setLocoF0F4Functions(unsigned int locoAddress, byte locoF0F4);
+    void setLocoF5F8Functions(unsigned int locoAddress, byte locoF5F8);
 
   private:
-    void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);
     void markPacketUpdated(DCCBufferPacket * currentPacket, DCCPacketList * packetList);
     void setupPacket(DCCBufferPacket * packet, byte * bytes, byte byteCount);
     void setupPacketBitStream(volatile DCCRawPacket * packet, byte * bytes, byte byteCount);
+
+    void movePacket(DCCBufferPacket * movedPacket, DCCPacketList * fromList, DCCPacketList * toList);
+    DCCBufferPacket * createPacket(unsigned int locoAddress, DCCInstruction dccInstruction, DCCPacketList * packetList);
+
     volatile DCCPriorityList * const _priorityList;
     CurrentMonitor * _currentMonitor;
     byte _enablePin;

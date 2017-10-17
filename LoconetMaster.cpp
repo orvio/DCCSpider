@@ -60,6 +60,7 @@ byte LoconetMaster::createLocoSlot(int locoAddress) {
       Serial.print(locoAddress, DEC);
       Serial.print(". Slot number: ");
       Serial.println(slotIndex + 1, DEC);
+
       return slotIndex + 1;
     }
   }
@@ -149,6 +150,17 @@ void LoconetMaster::processReceivedMessages()
     {
       byte slotNumber = receivedMessage->data[1];
       _slotData[slotNumber - 1].directionF0F4 = receivedMessage->data[2];
+
+      byte locoF0F4 = _slotData[slotNumber - 1].directionF0F4 & 0x1F; //Strip direction info
+      _dccBaseStation->setLocoF0F4Functions(_slotData[slotNumber - 1].locoAddress, locoF0F4);
+    }
+    else if (receivedMessage->data[0] == OPC_LOCO_SND )
+    {
+      byte slotNumber = receivedMessage->data[1];
+      _slotData[slotNumber - 1].slotSound = receivedMessage->data[2];
+
+      byte locoF5F8 = _slotData[slotNumber - 1].slotSound & 0x0F; //zero the bits that should be zero anyways for extra paranoia
+      _dccBaseStation->setLocoF5F8Functions(_slotData[slotNumber - 1].locoAddress, locoF5F8);
     }
   }
 }
@@ -167,7 +179,7 @@ void LoconetMaster::sendSlotReadData(byte slotNumber)
     replyMessage.data[ 7 ] = 4;//1; //TRK Track Status power is on
     replyMessage.data[ 8 ] = 0; //SS2 Status 2
     replyMessage.data[ 9 ] = _slotData[slotNumber - 1].locoAddress >> 8; //0x04; //ADR2 Address msb
-    replyMessage.data[ 10 ] = 0; //SND
+    replyMessage.data[ 10 ] = _slotData[slotNumber - 1].slotSound; //SND
     replyMessage.data[ 11 ] = _slotData[slotNumber - 1].deviceID >> 8;
     replyMessage.data[ 12 ] = _slotData[slotNumber - 1].deviceID & 0x00FF;
 
